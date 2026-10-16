@@ -28,7 +28,8 @@ class BM25SearchManager:
         self,
         query: str,
         top_k: int = 10,
-        document_ids: Optional[List[str]] = None
+        document_ids: Optional[List[str]] = None,
+        page_number: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """Perform keyword search returning ranked chunks with BM25 scores."""
         if not self.bm25 or not self.corpus:
@@ -46,12 +47,16 @@ class BM25SearchManager:
             if document_ids and chunk.get("document_id") not in document_ids:
                 continue
 
+            chunk_page = chunk.get("page", 1)
+            if page_number is not None and chunk_page != page_number:
+                continue
+
             if score > 0.0:
                 results.append({
                     "chunk_id": chunk.get("chunk_id", ""),
                     "document_id": chunk.get("document_id", ""),
                     "filename": chunk.get("filename", ""),
-                    "page": chunk.get("page", 1),
+                    "page": chunk_page,
                     "text": chunk.get("text", ""),
                     "score": float(score),
                     "source_type": "bm25"

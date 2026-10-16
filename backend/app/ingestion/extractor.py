@@ -9,7 +9,7 @@ from backend.app.ingestion.models import ExtractedDocument, DocumentPage
 class DocumentExtractor:
     """Extracts text and page metadata from supported document types."""
 
-    SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+    SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
 
     @classmethod
     def is_supported(cls, filename: str) -> bool:
@@ -23,10 +23,10 @@ class DocumentExtractor:
             pages = cls._extract_pdf(file_path)
         elif ext == ".docx":
             pages = cls._extract_docx(file_path)
-        elif ext == ".txt":
+        elif ext in {".txt", ".md"}:
             pages = cls._extract_txt(file_path)
         else:
-            raise ValueError(f"Unsupported file format: {ext}. Supported formats are PDF, DOCX, TXT.")
+            raise ValueError(f"Unsupported file format: {ext}. Supported formats are PDF, DOCX, TXT, MD.")
 
         # Filter out empty or whitespace-only pages
         valid_pages = [p for p in pages if p.text.strip()]

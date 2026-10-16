@@ -1,17 +1,19 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from backend.app.core.config import settings
 
 
 def reciprocal_rank_fusion(
     ranked_lists: List[List[Dict[str, Any]]],
     k: int = 60,
-    top_n: int = 10
+    top_n: int = 10,
+    target_page: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """Combines multiple ranked lists using Reciprocal Rank Fusion (RRF).
 
     Formula:
         RRF_score(d) = sum_{r in R} (1 / (k + rank_r(d)))
     where rank_r(d) is 1-based index of document d in list r.
+    If target_page is specified, chunks on that page receive a prioritization bonus.
     """
     rrf_scores: Dict[str, float] = {}
     doc_lookup: Dict[str, Dict[str, Any]] = {}
@@ -19,7 +21,7 @@ def reciprocal_rank_fusion(
 
     for ranked_list in ranked_lists:
         for rank, item in enumerate(ranked_list, start=1):
-            chunk_id = item["chunk_id"]
+            chunk_id = item.get("chunk_id")
             if not chunk_id:
                 continue
 
@@ -29,10 +31,16 @@ def reciprocal_rank_fusion(
             if chunk_id not in doc_lookup:
                 doc_lookup[chunk_id] = item
                 sources_lookup[chunk_id] = []
-            
+
             source_type = item.get("source_type", "unknown")
             if source_type not in sources_lookup[chunk_id]:
                 sources_lookup[chunk_id].append(source_type)
+
+    # Apply page-prioritization bonus if target_page is requested
+    if target_page is not None:
+        for cid, item in doc_lookup.items():
+            if item.get("page") == target_page:
+                rrf_scores[cid] += 0.1  # Significant boost to prioritize targeted page
 
     # Sort chunks by final RRF score in descending order
     sorted_chunk_ids = sorted(rrf_scores.keys(), key=lambda cid: rrf_scores[cid], reverse=True)

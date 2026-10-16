@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.core.config import settings
 from backend.app.api.routes import router
+from backend.app.auth.routes import router as auth_router
+from backend.app.chat.routes import router as chat_router
 from backend.app.retrieval.hybrid import hybrid_retriever
 
 
@@ -18,8 +20,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="DocuMind AI",
-    description="Evidence-grounded local RAG assistant with hybrid retrieval and verified citations.",
-    version="0.1.0",
+    description="Evidence-grounded local RAG assistant with hybrid retrieval, authentication, and verified citations.",
+    version="0.2.0",
     lifespan=lifespan
 )
 
@@ -33,7 +35,10 @@ app.add_middleware(
 )
 
 # Include API routes
+app.include_router(auth_router)
+app.include_router(chat_router)
 app.include_router(router)
+
 
 
 if __name__ == "__main__":

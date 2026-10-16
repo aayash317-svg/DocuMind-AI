@@ -29,12 +29,15 @@ class DocumentChunk(BaseModel):
 
 
 class DocumentMetadata(BaseModel):
-    """Stored document metadata."""
+    """Stored document metadata with user isolation and limitations diagnostics."""
     document_id: str
+    user_id: Optional[str] = None
     filename: str
     file_type: str
     file_size_bytes: int
     total_pages: int
     total_chunks: int
     upload_timestamp: str
+    limitations: Optional[Dict[str, Any]] = None
+
 

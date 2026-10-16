@@ -91,20 +91,28 @@ class VectorStoreManager:
         self,
         query: str,
         top_k: int = 10,
-        document_ids: Optional[List[str]] = None
+        document_ids: Optional[List[str]] = None,
+        page_number: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         query_vector = self.embed_query(query)
 
-        query_filter = None
+        conditions = []
         if document_ids:
-            query_filter = qmodels.Filter(
-                must=[
-                    qmodels.FieldCondition(
-                        key="document_id",
-                        match=qmodels.MatchAny(any=document_ids)
-                    )
-                ]
+            conditions.append(
+                qmodels.FieldCondition(
+                    key="document_id",
+                    match=qmodels.MatchAny(any=document_ids)
+                )
             )
+        if page_number is not None:
+            conditions.append(
+                qmodels.FieldCondition(
+                    key="page_number",
+                    match=qmodels.MatchValue(value=page_number)
+                )
+            )
+
+        query_filter = qmodels.Filter(must=conditions) if conditions else None
 
         # Use query_points for newer qdrant-client versions
         try:
