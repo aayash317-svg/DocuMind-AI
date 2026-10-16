@@ -81,6 +81,31 @@ interface HealthStatus {
   indexed_documents_count: number;
 }
 
+async function safeParseJson<T = any>(res: Response): Promise<{ ok: boolean; data?: T; error?: string }> {
+  const text = await res.text();
+  if (!text) {
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: `Server returned error (${res.status}: ${res.statusText || 'Empty body'}). Please verify backend is running on http://127.0.0.1:8000.`,
+      };
+    }
+    return { ok: true, data: {} as T };
+  }
+  try {
+    const data = JSON.parse(text);
+    if (!res.ok) {
+      return { ok: false, error: data.detail || data.message || `Request failed with status ${res.status}` };
+    }
+    return { ok: true, data };
+  } catch {
+    if (!res.ok) {
+      return { ok: false, error: text || `Server error (${res.status})` };
+    }
+    return { ok: false, error: `Invalid response received from server: ${text.slice(0, 100)}` };
+  }
+}
+
 export default function App() {
   // Auth state
   const [user, setUser] = useState<UserProfile | null>(() => {
@@ -152,7 +177,8 @@ export default function App() {
   const fetchHealth = async () => {
     try {
       const res = await fetch('/health');
-      if (res.ok) setHealth(await res.json());
+      const parse = await safeParseJson<HealthStatus>(res);
+      if (parse.ok && parse.data) setHealth(parse.data);
     } catch {
       setHealth(null);
     }
@@ -161,9 +187,9 @@ export default function App() {
   const fetchDocuments = async () => {
     try {
       const res = await fetch('/documents', { headers: authHeaders() });
-      if (res.ok) {
-        const data: DocumentItem[] = await res.json();
-        setDocuments(data);
+      const parse = await safeParseJson<DocumentItem[]>(res);
+      if (parse.ok && parse.data) {
+        setDocuments(parse.data);
       }
     } catch (err) {
       console.error('Failed to load documents:', err);
@@ -174,9 +200,9 @@ export default function App() {
     if (!authToken) return;
     try {
       const res = await fetch('/conversations', { headers: authHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setConversations(data);
+      const parse = await safeParseJson<ConversationSummary[]>(res);
+      if (parse.ok && parse.data) {
+        setConversations(parse.data);
       }
     } catch (err) {
       console.error('Failed to load conversations:', err);
@@ -196,8 +222,9 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: authEmail, password: authPassword, full_name: authFullName }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Signup failed');
+        const parse = await safeParseJson<any>(res);
+        if (!parse.ok) throw new Error(parse.error || 'Signup failed');
+        const data = parse.data;
 
         setAuthToken(data.token);
         setUser(data.user);
@@ -210,8 +237,9 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: authEmail, password: authPassword }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Login failed');
+        const parse = await safeParseJson<any>(res);
+        if (!parse.ok) throw new Error(parse.error || 'Login failed');
+        const data = parse.data;
 
         setAuthToken(data.token);
         setUser(data.user);
@@ -224,8 +252,9 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: authEmail, new_password: authPassword }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Password reset failed');
+        const parse = await safeParseJson<any>(res);
+        if (!parse.ok) throw new Error(parse.error || 'Password reset failed');
+        const data = parse.data;
 
         setAuthSuccess(data.message || 'Password reset successfully! Please sign in.');
         setAuthMode('login');
@@ -265,9 +294,10 @@ export default function App() {
   const handleSelectConversation = async (convId: string) => {
     try {
       const res = await fetch(`/conversations/${convId}`, { headers: authHeaders() });
-      if (!res.ok) return;
+      const parse = await safeParseJson<any>(res);
+      if (!parse.ok || !parse.data) return;
 
-      const data = await res.json();
+      const data = parse.data;
       setActiveConvId(data.id);
 
       if (data.messages && data.messages.length > 0) {
@@ -352,19 +382,19 @@ export default function App() {
         body: formData,
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`Upload error: ${err.detail || 'Failed to upload'}`);
+      const parse = await safeParseJson<any>(res);
+      if (!parse.ok) {
+        alert(`Upload error: ${parse.error || 'Failed to upload document.'}`);
       } else {
-        const uploadedMeta = await res.json();
+        const uploadedMeta = parse.data;
         await fetchDocuments();
         await fetchHealth();
 
         // Automatically open the limitations dialog for the uploaded document
         setSelectedDocForModal(uploadedMeta);
       }
-    } catch (err) {
-      alert(`Network error uploading file: ${err}`);
+    } catch (err: any) {
+      alert(`Network error uploading file: ${err?.message || err}`);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -424,12 +454,12 @@ export default function App() {
         }),
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Chat query failed');
+      const parse = await safeParseJson<any>(res);
+      if (!parse.ok) {
+        throw new Error(parse.error || 'Chat query failed');
       }
 
-      const data = await res.json();
+      const data = parse.data;
       if (!activeConvId && data.conversation_id) {
         setActiveConvId(data.conversation_id);
       }
