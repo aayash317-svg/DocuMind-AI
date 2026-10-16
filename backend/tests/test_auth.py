@@ -12,8 +12,11 @@ def test_password_hashing():
     assert verify_password("WrongPassword", salt, h1) is False
 
 
+import uuid
+
+
 def test_auth_service_signup_login_reset():
-    email = "testuser@documind.ai"
+    email = f"testuser_{uuid.uuid4().hex[:8]}@documind.ai"
     password = "MySecurePassword123"
 
     # Signup

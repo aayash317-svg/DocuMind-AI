@@ -40,7 +40,10 @@ def reciprocal_rank_fusion(
     if target_page is not None:
         for cid, item in doc_lookup.items():
             if item.get("page") == target_page:
-                rrf_scores[cid] += 0.1  # Significant boost to prioritize targeted page
+                chunk_idx = item.get("chunk_index", 0)
+                # Significant boost plus early chunk position bonus (so chunk 0/1 rank top)
+                chunk_bonus = max(0.0, 0.05 - (chunk_idx * 0.005))
+                rrf_scores[cid] += (0.15 + chunk_bonus)
 
     # Sort chunks by final RRF score in descending order
     sorted_chunk_ids = sorted(rrf_scores.keys(), key=lambda cid: rrf_scores[cid], reverse=True)

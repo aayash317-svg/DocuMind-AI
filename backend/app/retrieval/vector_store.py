@@ -16,8 +16,11 @@ class VectorStoreManager:
     _instance = None
 
     def __init__(self):
-        Path(settings.QDRANT_PATH).mkdir(parents=True, exist_ok=True)
-        self.client = QdrantClient(path=settings.QDRANT_PATH)
+        if settings.QDRANT_PATH == ":memory:":
+            self.client = QdrantClient(":memory:")
+        else:
+            Path(settings.QDRANT_PATH).mkdir(parents=True, exist_ok=True)
+            self.client = QdrantClient(path=settings.QDRANT_PATH)
         self.collection_name = settings.QDRANT_COLLECTION
 
         # Lazy/Cached model loading
@@ -140,11 +143,61 @@ class VectorStoreManager:
                 "document_id": r.payload.get("document_id", ""),
                 "filename": r.payload.get("filename", ""),
                 "page": r.payload.get("page_number", 1),
+                "chunk_index": r.payload.get("chunk_index", 0),
                 "text": r.payload.get("text", ""),
                 "score": float(r.score),
                 "source_type": "dense"
             })
         return formatted_results
+
+    def get_page_chunks(
+        self,
+        page_number: int,
+        document_ids: Optional[List[str]] = None,
+        limit: int = 6
+    ) -> List[Dict[str, Any]]:
+        """Directly retrieve chunks belonging to a specific page, ordered by chunk_index."""
+        conditions = [
+            qmodels.FieldCondition(
+                key="page_number",
+                match=qmodels.MatchValue(value=page_number)
+            )
+        ]
+        if document_ids:
+            conditions.append(
+                qmodels.FieldCondition(
+                    key="document_id",
+                    match=qmodels.MatchAny(any=document_ids)
+                )
+            )
+
+        query_filter = qmodels.Filter(must=conditions)
+        try:
+            records, _ = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=query_filter,
+                limit=limit,
+                with_payload=True,
+                with_vectors=False
+            )
+        except Exception:
+            return []
+
+        page_chunks = []
+        for r in records:
+            p = r.payload or {}
+            page_chunks.append({
+                "chunk_id": p.get("chunk_id", ""),
+                "document_id": p.get("document_id", ""),
+                "filename": p.get("filename", ""),
+                "page": p.get("page_number", page_number),
+                "chunk_index": p.get("chunk_index", 0),
+                "text": p.get("text", ""),
+                "score": 0.99,
+                "source_type": "page_context"
+            })
+        page_chunks.sort(key=lambda x: x.get("chunk_index", 0))
+        return page_chunks
 
     def get_all_chunks(self, document_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """Retrieve all stored chunk payloads (used for building or refreshing BM25)."""
@@ -177,6 +230,7 @@ class VectorStoreManager:
                     "document_id": r.payload.get("document_id", ""),
                     "filename": r.payload.get("filename", ""),
                     "page": r.payload.get("page_number", 1),
+                    "chunk_index": r.payload.get("chunk_index", 0),
                     "text": r.payload.get("text", ""),
                 })
             if next_offset is None or not records:

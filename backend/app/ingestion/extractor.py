@@ -88,17 +88,52 @@ class DocumentExtractor:
             with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
 
-            # Split on form feed character if present, else logical page grouping
-            raw_pages = content.split("\f")
             pages: List[DocumentPage] = []
-            for idx, p in enumerate(raw_pages):
-                if p.strip():
-                    pages.append(DocumentPage(page_number=idx + 1, text=p.strip()))
+
+            # 1. Check for form feed characters
+            if "\f" in content:
+                for idx, p in enumerate(content.split("\f")):
+                    if p.strip():
+                        pages.append(DocumentPage(page_number=idx + 1, text=p.strip()))
+                if pages:
+                    return pages
+
+            # 2. Markdown heading-based pagination
+            ext = file_path.suffix.lower()
+            if ext == ".md" or "\n# " in content or "\n## " in content:
+                import re
+                sections = re.split(r'\n(?=#{1,2}\s+[^\n]+)', content)
+                page_num = 1
+                for s in sections:
+                    s_clean = s.strip()
+                    if s_clean:
+                        pages.append(DocumentPage(page_number=page_num, text=s_clean))
+                        page_num += 1
+                if pages:
+                    return pages
+
+            # 3. Plain text paragraph chunking into logical pages of ~400 words
+            paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
+            current_page_text: List[str] = []
+            current_word_count = 0
+            page_num = 1
+
+            for p in paragraphs:
+                current_page_text.append(p)
+                current_word_count += len(p.split())
+                if current_word_count >= 400:
+                    pages.append(DocumentPage(page_number=page_num, text="\n\n".join(current_page_text)))
+                    page_num += 1
+                    current_page_text = []
+                    current_word_count = 0
+
+            if current_page_text:
+                pages.append(DocumentPage(page_number=page_num, text="\n\n".join(current_page_text)))
 
             if not pages and content.strip():
                 pages.append(DocumentPage(page_number=1, text=content.strip()))
 
             return pages
         except Exception as e:
-            raise RuntimeError(f"Failed to extract text from TXT: {str(e)}") from e
+            raise RuntimeError(f"Failed to extract text from text file: {str(e)}") from e
 

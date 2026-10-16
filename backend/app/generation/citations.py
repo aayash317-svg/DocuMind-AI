@@ -36,8 +36,30 @@ class CitationValidator:
         if not passages:
             return True
 
-        lower_answer = answer.lower()
-        return any(trigger in lower_answer for trigger in INSUFFICIENT_EVIDENCE_TRIGGERS)
+        trimmed = answer.strip()
+        lower_answer = trimmed.lower()
+
+        # Check if the answer begins with or is primarily an explicit abstention
+        first_few = lower_answer[:160]
+        has_abstention_start = any(
+            trigger in first_few for trigger in [
+                "do not contain sufficient evidence",
+                "does not contain sufficient evidence",
+                "insufficient evidence",
+                "not enough evidence to answer",
+                "no relevant information",
+                "cannot answer based on the provided",
+                "no information provided to answer",
+                "the provided documents do not contain",
+            ]
+        )
+        if has_abstention_start and len(trimmed) < 320:
+            return True
+
+        if "provided documents do not contain sufficient evidence" in lower_answer and len(trimmed) < 280:
+            return True
+
+        return False
 
     @classmethod
     def extract_cited_pages(cls, answer: str) -> List[Tuple[Optional[str], Optional[int]]]:

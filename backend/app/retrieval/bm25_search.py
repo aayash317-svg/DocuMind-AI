@@ -57,6 +57,7 @@ class BM25SearchManager:
                     "document_id": chunk.get("document_id", ""),
                     "filename": chunk.get("filename", ""),
                     "page": chunk_page,
+                    "chunk_index": chunk.get("chunk_index", 0),
                     "text": chunk.get("text", ""),
                     "score": float(score),
                     "source_type": "bm25"

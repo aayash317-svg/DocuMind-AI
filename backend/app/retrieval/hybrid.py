@@ -55,6 +55,7 @@ class HybridRetriever:
         )
 
         # 3. If a specific page is targeted, also run targeted retrieval for that page
+        page_chunks = []
         if target_page is not None:
             targeted_dense = vector_store.search_dense(
                 query=query,
@@ -68,6 +69,12 @@ class HybridRetriever:
                 document_ids=document_ids,
                 page_number=target_page
             )
+            page_chunks = vector_store.get_page_chunks(
+                page_number=target_page,
+                document_ids=document_ids,
+                limit=top_k
+            )
+
             # Combine without duplicate chunk IDs
             seen_ids = {d["chunk_id"] for d in dense_results}
             for td in targeted_dense:
@@ -81,26 +88,34 @@ class HybridRetriever:
                     bm25_results.append(tb)
                     seen_bm25.add(tb["chunk_id"])
 
-        # If both are empty (no documents indexed yet)
-        if not dense_results and not bm25_results:
+        # If all candidate lists are empty (no documents indexed yet)
+        if not dense_results and not bm25_results and not page_chunks:
             return []
 
         # 4. Reciprocal Rank Fusion with target_page prioritization
+        ranked_lists = [dense_results, bm25_results]
+        if page_chunks:
+            ranked_lists.append(page_chunks)
+
         fused = reciprocal_rank_fusion(
-            ranked_lists=[dense_results, bm25_results],
+            ranked_lists=ranked_lists,
             k=settings.RRF_K,
             top_n=top_k,
             target_page=target_page
         )
 
         # 5. Relevance filtering: avoid returning completely unrelated passages
-        # If a passage has very low dense similarity (< 0.22) and zero keyword match, prune it
         filtered = []
         for item in fused:
             dense_score = item.get("score", 0.0) if item.get("source_type") == "dense" else 0.0
             sources = item.get("retrieval_sources", [])
-            # Keep if it matched keywords, or dense similarity is above threshold, or it's on target page
-            if "bm25" in sources or dense_score >= 0.22 or (target_page and item.get("page") == target_page):
+            # Keep if it matched keywords, direct page context, dense similarity >= 0.22, or on target page
+            if (
+                "bm25" in sources
+                or "page_context" in sources
+                or dense_score >= 0.22
+                or (target_page is not None and item.get("page") == target_page)
+            ):
                 filtered.append(item)
 
         return filtered[:top_k]

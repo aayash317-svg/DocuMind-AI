@@ -36,7 +36,8 @@ class Settings(BaseSettings):
     def setup_directories(self) -> None:
         """Ensure necessary data directories exist."""
         Path(self.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
-        Path(self.QDRANT_PATH).mkdir(parents=True, exist_ok=True)
+        if self.QDRANT_PATH and self.QDRANT_PATH != ":memory:":
+            Path(self.QDRANT_PATH).mkdir(parents=True, exist_ok=True)
 
 
 settings = Settings()

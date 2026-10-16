@@ -856,16 +856,31 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Source Pills */}
+                    {/* Source Pills (Deduplicated with passage count) */}
                     <div className="flex flex-wrap gap-1.5">
-                      {msg.sources.map((s, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800 text-emerald-300 border border-slate-700"
-                        >
-                          {s.filename} · p.{s.page}
-                        </span>
-                      ))}
+                      {(() => {
+                        const grouped: { [key: string]: { filename: string; page: number; count: number } } = {};
+                        for (const s of msg.sources) {
+                          const key = `${s.filename}__p${s.page}`;
+                          if (!grouped[key]) {
+                            grouped[key] = { filename: s.filename, page: s.page, count: 0 };
+                          }
+                          grouped[key].count += 1;
+                        }
+                        return Object.values(grouped).map((group, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800 text-emerald-300 border border-slate-700"
+                          >
+                            <span>{group.filename} · p.{group.page}</span>
+                            {group.count > 1 && (
+                              <span className="ml-1 text-[10px] text-emerald-400/80 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800/40 font-sans">
+                                {group.count} passages
+                              </span>
+                            )}
+                          </span>
+                        ));
+                      })()}
                     </div>
 
                     {/* Expanded Passages */}

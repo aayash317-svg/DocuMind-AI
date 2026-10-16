@@ -47,3 +47,40 @@ def test_citation_validator_grounded_response():
     assert resp.sources[0].filename == "test.pdf"
     assert resp.sources[0].page == 2
 
+
+def test_reciprocal_rank_fusion_target_page_boost():
+    """Verify that chunks on the targeted page receive priority."""
+    list1 = [
+        {"chunk_id": "c1", "page": 2, "chunk_index": 0, "text": "Page 2 content", "source_type": "dense"},
+        {"chunk_id": "c2", "page": 1, "chunk_index": 0, "text": "Page 1 intro", "source_type": "dense"},
+    ]
+    # Without target_page, c1 is rank 1
+    fused_default = reciprocal_rank_fusion([list1], k=60, top_n=2)
+    assert fused_default[0]["chunk_id"] == "c1"
+
+    # With target_page=1, c2 receives the boost and ranks first
+    fused_boosted = reciprocal_rank_fusion([list1], k=60, top_n=2, target_page=1)
+    assert fused_boosted[0]["chunk_id"] == "c2"
+
+
+def test_citation_validator_substantive_with_caveat():
+    """Verify that long substantive answers explaining a page are NOT flagged as insufficient evidence."""
+    substantive_answer = (
+        "Page 1 describes the high-level architecture of DocuMind AI, which is a local-first RAG assistant "
+        "supporting PDF, DOCX, and TXT files with persistent vector storage [Source: arch.md, Page: 1]. "
+        "While future additions are not explicitly listed in the text, recommended enhancements include "
+        "adding multi-modal support and advanced semantic caching."
+    )
+    passages = [{
+        "chunk_id": "c1",
+        "document_id": "doc_1",
+        "filename": "arch.md",
+        "page": 1,
+        "text": "DocuMind AI is a local-first RAG assistant supporting PDF, DOCX, and TXT files with vector storage."
+    }]
+
+    resp = citation_validator.build_response(substantive_answer, passages)
+    assert resp.insufficient_evidence is False
+    assert len(resp.sources) >= 1
+    assert resp.sources[0].page == 1
+
