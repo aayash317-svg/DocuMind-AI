@@ -1,0 +1,31 @@
+[
+  {
+    "id": "q1",
+    "question": "What is the primary goal of DocuMind AI?",
+    "expected_answer_keywords": ["local-first", "RAG", "evidence-backed citations"],
+    "expected_document": "DocuMind_AI_Architecture_Workflows.md",
+    "should_abstain": false
+  },
+  {
+    "id": "q2",
+    "question": "Which local LLM is recommended for local inference?",
+    "expected_answer_keywords": ["qwen2.5:1.5b", "Ollama"],
+    "expected_document": "DocuMind_AI_Architecture_Workflows.md",
+    "should_abstain": false
+  },
+  {
+    "id": "q3",
+    "question": "What rank fusion algorithm is used to combine dense and keyword search results?",
+    "expected_answer_keywords": ["Reciprocal Rank Fusion", "RRF"],
+    "expected_document": "DocuMind_AI_Architecture_Workflows.md",
+    "should_abstain": false
+  },
+  {
+    "id": "q4",
+    "question": "Who was the winner of the 1994 FIFA World Cup?",
+    "expected_answer_keywords": [],
+    "expected_document": null,
+    "should_abstain": true
+  }
+]
+
