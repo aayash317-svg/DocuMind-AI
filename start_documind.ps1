@@ -1,3 +1,5 @@
+Set-Location $PSScriptRoot
+
 Write-Host "========================================================" -ForegroundColor Cyan
 Write-Host "       Starting DocuMind AI Full Stack Services         " -ForegroundColor Cyan
 Write-Host "========================================================" -ForegroundColor Cyan
@@ -23,3 +25,4 @@ Write-Host "DocuMind AI is now running!" -ForegroundColor Green
 Write-Host "Frontend: http://localhost:5173/" -ForegroundColor Green
 Write-Host "Backend:  http://127.0.0.1:8000/docs" -ForegroundColor Green
 Write-Host "========================================================" -ForegroundColor Green
+
