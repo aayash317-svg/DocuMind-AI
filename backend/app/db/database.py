@@ -10,6 +10,7 @@ DB_PATH = Path(settings.UPLOAD_DIR).parent / "documind.db"
 def get_db_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -83,6 +84,12 @@ def init_database() -> None:
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
+        """)
+
+        # Ensure default_user exists for unauthenticated sessions
+        cursor.execute("""
+            INSERT OR IGNORE INTO users (id, email, password_hash, salt, full_name, created_at)
+            VALUES ('default_user', 'default@documind.ai', '', '', 'Default User', '2026-01-01T00:00:00Z')
         """)
 
         conn.commit()

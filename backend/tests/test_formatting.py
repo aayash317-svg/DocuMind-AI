@@ -62,3 +62,4 @@ def test_enforce_formatting_single_sentence():
     assert res.startswith("The initial synthetic-speech review threshold is 0.75 or higher.")
     assert "[Source: Voice_Shield_Test_Document.txt, Page: 1]" in res
     assert "When a clip produces" not in res
+

@@ -81,28 +81,36 @@ interface HealthStatus {
   indexed_documents_count: number;
 }
 
-async function safeParseJson<T = any>(res: Response): Promise<{ ok: boolean; data?: T; error?: string }> {
+interface SafeParseResult<T = any> {
+  ok: boolean;
+  status: number;
+  data?: T;
+  error?: string;
+}
+
+async function safeParseJson<T = any>(res: Response): Promise<SafeParseResult<T>> {
   const text = await res.text();
   if (!text) {
     if (!res.ok) {
       return {
         ok: false,
+        status: res.status,
         error: `Server returned error (${res.status}: ${res.statusText || 'Empty body'}). Please verify backend is running on http://127.0.0.1:8000.`,
       };
     }
-    return { ok: true, data: {} as T };
+    return { ok: true, status: res.status, data: {} as T };
   }
   try {
     const data = JSON.parse(text);
     if (!res.ok) {
-      return { ok: false, error: data.detail || data.message || `Request failed with status ${res.status}` };
+      return { ok: false, status: res.status, error: data.detail || data.message || `Request failed with status ${res.status}` };
     }
-    return { ok: true, data };
+    return { ok: true, status: res.status, data };
   } catch {
     if (!res.ok) {
-      return { ok: false, error: text || `Server error (${res.status})` };
+      return { ok: false, status: res.status, error: text || `Server error (${res.status})` };
     }
-    return { ok: false, error: `Invalid response received from server: ${text.slice(0, 100)}` };
+    return { ok: false, status: res.status, error: `Invalid response received from server: ${text.slice(0, 100)}` };
   }
 }
 
@@ -196,11 +204,26 @@ export default function App() {
     }
   };
 
+  const handleSessionExpired = () => {
+    setAuthToken(null);
+    setUser(null);
+    localStorage.removeItem('documind_token');
+    localStorage.removeItem('documind_user');
+    setConversations([]);
+    setAuthError('Your session has expired. Please sign in again.');
+    setAuthMode('login');
+    setShowAuthModal(true);
+  };
+
   const fetchConversations = async () => {
     if (!authToken) return;
     try {
       const res = await fetch('/conversations', { headers: authHeaders() });
       const parse = await safeParseJson<ConversationSummary[]>(res);
+      if (parse.status === 401) {
+        handleSessionExpired();
+        return;
+      }
       if (parse.ok && parse.data) {
         setConversations(parse.data);
       }
@@ -295,7 +318,14 @@ export default function App() {
     try {
       const res = await fetch(`/conversations/${convId}`, { headers: authHeaders() });
       const parse = await safeParseJson<any>(res);
-      if (!parse.ok || !parse.data) return;
+      if (parse.status === 401) {
+        handleSessionExpired();
+        return;
+      }
+      if (!parse.ok || !parse.data) {
+        if (parse.error) alert(parse.error);
+        return;
+      }
 
       const data = parse.data;
       setActiveConvId(data.id);
@@ -336,9 +366,16 @@ export default function App() {
         headers: authHeaders(),
         body: JSON.stringify({ title: editTitleInput.trim() }),
       });
+      if (res.status === 401) {
+        handleSessionExpired();
+        return;
+      }
       if (res.ok) {
         setEditingConvId(null);
         fetchConversations();
+      } else {
+        const parse = await safeParseJson(res);
+        alert(`Failed to rename: ${parse.error || res.statusText}`);
       }
     } catch (err) {
       alert(`Failed to rename: ${err}`);
@@ -354,9 +391,16 @@ export default function App() {
         method: 'DELETE',
         headers: authHeaders(),
       });
+      if (res.status === 401) {
+        handleSessionExpired();
+        return;
+      }
       if (res.ok) {
         if (activeConvId === convId) handleStartNewChat();
         fetchConversations();
+      } else {
+        const parse = await safeParseJson(res);
+        alert(`Failed to delete chat: ${parse.error || res.statusText}`);
       }
     } catch (err) {
       alert(`Failed to delete chat: ${err}`);
@@ -455,6 +499,10 @@ export default function App() {
       });
 
       const parse = await safeParseJson<any>(res);
+      if (parse.status === 401) {
+        handleSessionExpired();
+        throw new Error('Your session has expired. Please sign in again.');
+      }
       if (!parse.ok) {
         throw new Error(parse.error || 'Chat query failed');
       }

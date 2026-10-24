@@ -1,10 +1,18 @@
 from backend.app.chat.service import ChatHistoryService
 from backend.app.generation.models import CitationSource
+from backend.app.db.database import get_db_connection
 
 
 def test_chat_history_lifecycle():
     user_id = "test_user_history_1"
     
+    with get_db_connection() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO users (id, email, password_hash, salt, full_name, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, f"{user_id}@documind.ai", "", "", "Test User", "2026-01-01T00:00:00Z")
+        )
+        conn.commit()
+
     # 1. Create conversation
     conv = ChatHistoryService.create_conversation(user_id=user_id, title="Test Exploration")
     assert conv.id.startswith("conv_")

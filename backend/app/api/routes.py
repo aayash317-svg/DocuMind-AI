@@ -190,12 +190,19 @@ async def delete_document(
     user: Optional[UserResponse] = Depends(get_current_user_optional)
 ) -> Dict[str, Any]:
     """Remove a document and all its chunks from the vector store and database."""
-    vector_store.delete_document(document_id)
     with get_db_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM user_documents WHERE document_id = ?", (document_id,))
+        doc_row = cursor.fetchone()
+        if doc_row and user and doc_row["user_id"] != user.id and doc_row["user_id"] != "default_user":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission denied: Cannot delete another user's document."
+            )
         cursor.execute("DELETE FROM user_documents WHERE document_id = ?", (document_id,))
         conn.commit()
 
+    vector_store.delete_document(document_id)
     hybrid_retriever.sync_bm25_index()
     return {"message": f"Document '{document_id}' successfully removed."}
 

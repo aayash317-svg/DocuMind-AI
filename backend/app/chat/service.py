@@ -164,6 +164,7 @@ class ChatHistoryService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Conversation not found."
                 )
+            cursor.execute("DELETE FROM messages WHERE conversation_id = ?", (conv_id,))
             conn.commit()
 
     @classmethod
@@ -183,7 +184,7 @@ class ChatHistoryService:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             # Ensure conversation exists; if not, create it
-            cursor.execute("SELECT id, title FROM conversations WHERE id = ?", (conv_id,))
+            cursor.execute("SELECT id, user_id, title FROM conversations WHERE id = ?", (conv_id,))
             row = cursor.fetchone()
             if not row:
                 title = text[:40] + ("..." if len(text) > 40 else "")
@@ -192,6 +193,13 @@ class ChatHistoryService:
                     (conv_id, user_id, title, now, now)
                 )
             else:
+                # Security: Enforce user isolation - prevent posting into another user's conversation
+                if row["user_id"] != user_id and row["user_id"] != "default_user" and user_id != "default_user":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Access denied: Cannot post messages to another user's conversation."
+                    )
+
                 # If first message and title is "New Chat", auto-generate title from user text
                 if row["title"] == "New Chat" and sender == "user":
                     auto_title = text[:36] + ("..." if len(text) > 36 else "")
