@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List
+import re
 import pypdf
 import docx
 
@@ -10,6 +11,19 @@ class DocumentExtractor:
     """Extracts text and page metadata from supported document types."""
 
     SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
+
+    @staticmethod
+    def clean_text(text: str) -> str:
+        """Strip raw embedded SVG elements, XML vector noise, and excess whitespace."""
+        if not text:
+            return ""
+        # Strip embedded <svg>...</svg> blocks
+        cleaned = re.sub(r'<svg[\s\S]*?</svg>', '', text, flags=re.IGNORECASE)
+        # Strip standalone <svg> or </svg> tags
+        cleaned = re.sub(r'</?svg[^>]*>', '', cleaned, flags=re.IGNORECASE)
+        # Normalize multiple spaces
+        cleaned = re.sub(r'[ \t]+', ' ', cleaned)
+        return cleaned.strip()
 
     @classmethod
     def is_supported(cls, filename: str) -> bool:
@@ -47,8 +61,8 @@ class DocumentExtractor:
         try:
             reader = pypdf.PdfReader(str(file_path))
             for idx, page in enumerate(reader.pages):
-                text = page.extract_text() or ""
-                pages.append(DocumentPage(page_number=idx + 1, text=text.strip()))
+                text = cls.clean_text(page.extract_text() or "")
+                pages.append(DocumentPage(page_number=idx + 1, text=text))
         except Exception as e:
             raise RuntimeError(f"Failed to extract text from PDF: {str(e)}") from e
         return pages
