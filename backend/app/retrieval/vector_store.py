@@ -16,11 +16,29 @@ class VectorStoreManager:
     _instance = None
 
     def __init__(self):
-        if settings.QDRANT_PATH == ":memory:":
+        q_path = os.environ.get("QDRANT_PATH", settings.QDRANT_PATH)
+        is_test = os.environ.get("APP_ENV") == "test" or settings.APP_ENV == "test"
+
+        if is_test or q_path == ":memory:":
             self.client = QdrantClient(":memory:")
         else:
-            Path(settings.QDRANT_PATH).mkdir(parents=True, exist_ok=True)
-            self.client = QdrantClient(path=settings.QDRANT_PATH)
+            qpath = Path(q_path)
+            qpath.mkdir(parents=True, exist_ok=True)
+            try:
+                self.client = QdrantClient(path=str(qpath))
+            except Exception as e:
+                if is_test:
+                    self.client = QdrantClient(":memory:")
+                else:
+                    lock_file = qpath / ".lock"
+                    if "already accessed by another instance" in str(e).lower() and lock_file.exists():
+                        try:
+                            lock_file.unlink(missing_ok=True)
+                            self.client = QdrantClient(path=str(qpath))
+                        except Exception:
+                            raise e
+                    else:
+                        raise e
         self.collection_name = settings.QDRANT_COLLECTION
 
         # Lazy/Cached model loading

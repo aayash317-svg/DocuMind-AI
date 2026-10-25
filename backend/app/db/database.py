@@ -4,19 +4,32 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from backend.app.core.config import settings
 
-DB_PATH = Path(settings.UPLOAD_DIR).parent / "documind.db"
+def get_db_path() -> Path:
+    if settings.APP_ENV == "test":
+        return Path("./data/documind_test.db")
+    return Path(settings.UPLOAD_DIR).parent / "documind.db"
+
+
+DB_PATH = get_db_path()
 
 
 def get_db_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
+    db_path = get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_path), timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        conn.execute("PRAGMA journal_mode = WAL")
+    except Exception:
+        pass
     return conn
 
 
 def init_database() -> None:
     """Initialize SQLite database tables for users, conversations, messages, and documents."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    db_path = get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     with get_db_connection() as conn:
         cursor = conn.cursor()
 

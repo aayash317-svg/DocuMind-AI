@@ -216,6 +216,18 @@ async def chat_query(
     user_id = user.id if user else "default_user"
     conv_id = request.conversation_id or f"conv_{uuid.uuid4().hex[:12]}"
 
+    # Verify conversation ownership if an existing conversation_id is provided
+    if request.conversation_id:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM conversations WHERE id = ?", (request.conversation_id,))
+            conv_row = cursor.fetchone()
+            if conv_row and conv_row["user_id"] != user_id and conv_row["user_id"] != "default_user":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied: Cannot send message to another user's conversation."
+                )
+
     # Save incoming user question to SQLite history
     ChatHistoryService.save_message(
         conv_id=conv_id,

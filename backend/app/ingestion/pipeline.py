@@ -9,8 +9,6 @@ from backend.app.ingestion.extractor import DocumentExtractor
 from backend.app.ingestion.chunker import DocumentChunker
 from backend.app.ingestion.models import DocumentMetadata
 from backend.app.ingestion.diagnostics import diagnostic_analyzer
-from backend.app.retrieval.vector_store import vector_store
-from backend.app.retrieval.hybrid import hybrid_retriever
 from backend.app.db.database import get_db_connection
 
 
@@ -54,6 +52,9 @@ class IngestionPipeline:
 
         # 3. Analyze document limitations and extraction diagnostics
         diagnostics = diagnostic_analyzer.analyze(extracted_doc, file_size)
+
+        from backend.app.retrieval.vector_store import vector_store
+        from backend.app.retrieval.hybrid import hybrid_retriever
 
         # 4. Embed & upsert into Qdrant
         vector_store.upsert_chunks(chunks)

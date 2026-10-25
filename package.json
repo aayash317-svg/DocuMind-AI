@@ -1,0 +1,12 @@
+{
+  "name": "documind-ai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "DocuMind AI — Grounded RAG Knowledge Assistant",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview",
+    "test": "npm --prefix frontend run build"
+  }
+}

@@ -173,3 +173,4 @@ def test_recent_chats_ordering_reopening_and_cleanup():
         cursor.execute("SELECT COUNT(*) FROM messages WHERE conversation_id = ?", (c1["id"],))
         remaining_messages = cursor.fetchone()[0]
         assert remaining_messages == 0
+
