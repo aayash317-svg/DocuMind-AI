@@ -39,7 +39,8 @@ def reciprocal_rank_fusion(
     # Apply page-prioritization bonus if target_page is requested
     if target_page is not None:
         for cid, item in doc_lookup.items():
-            if item.get("page") == target_page:
+            item_page = item.get("page") or item.get("page_number")
+            if item_page == target_page:
                 chunk_idx = item.get("chunk_index", 0)
                 # Significant boost plus early chunk position bonus (so chunk 0/1 rank top)
                 chunk_bonus = max(0.0, 0.05 - (chunk_idx * 0.005))

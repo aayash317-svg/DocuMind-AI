@@ -45,13 +45,13 @@ class DocumentExtractor:
         # Filter out empty or whitespace-only pages
         valid_pages = [p for p in pages if p.text.strip()]
         if not valid_pages:
-            raise ValueError(f"No readable text could be extracted from {original_filename}.")
+            raise ValueError(f"No readable text could be extracted from {original_filename}. Scanned PDFs without OCR or empty documents cannot be indexed.")
 
         return ExtractedDocument(
             document_id=document_id,
             filename=original_filename,
             file_type=ext.lstrip("."),
-            total_pages=len(valid_pages),
+            total_pages=len(pages),
             pages=valid_pages,
         )
 
@@ -64,7 +64,7 @@ class DocumentExtractor:
                 text = cls.clean_text(page.extract_text() or "")
                 pages.append(DocumentPage(page_number=idx + 1, text=text))
         except Exception as e:
-            raise RuntimeError(f"Failed to extract text from PDF: {str(e)}") from e
+            raise ValueError(f"Corrupted or unreadable PDF file: {str(e)}") from e
         return pages
 
     @classmethod
@@ -72,9 +72,20 @@ class DocumentExtractor:
         try:
             doc = docx.Document(str(file_path))
             paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+
+            # Extract table contents so tabular facts are not lost
+            for table in doc.tables:
+                for row in table.rows:
+                    row_cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                    unique_cells = []
+                    for c in row_cells:
+                        if not unique_cells or c != unique_cells[-1]:
+                            unique_cells.append(c)
+                    if unique_cells:
+                        paragraphs.append(" | ".join(unique_cells))
             
             # DOCX does not have native physical page boundaries in raw XML.
-            # Group every ~500 words or 3-4 paragraphs into logical pages.
+            # Group every ~400 words or 3-4 paragraphs into logical pages.
             pages: List[DocumentPage] = []
             current_page_text: List[str] = []
             current_word_count = 0
@@ -94,7 +105,7 @@ class DocumentExtractor:
 
             return pages
         except Exception as e:
-            raise RuntimeError(f"Failed to extract text from DOCX: {str(e)}") from e
+            raise ValueError(f"Corrupted or unreadable DOCX file: {str(e)}") from e
 
     @classmethod
     def _extract_txt(cls, file_path: Path) -> List[DocumentPage]:
@@ -149,5 +160,5 @@ class DocumentExtractor:
 
             return pages
         except Exception as e:
-            raise RuntimeError(f"Failed to extract text from text file: {str(e)}") from e
+            raise ValueError(f"Corrupted or unreadable text file: {str(e)}") from e
 

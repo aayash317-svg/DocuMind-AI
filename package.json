@@ -10,3 +10,4 @@
     "test": "npm --prefix frontend run build"
   }
 }
+

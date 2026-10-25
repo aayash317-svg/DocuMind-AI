@@ -84,3 +84,51 @@ def test_citation_validator_substantive_with_caveat():
     assert len(resp.sources) >= 1
     assert resp.sources[0].page == 1
 
+
+def test_citation_validator_unspecified_metric_no_fallback_citation():
+    """Verify that when the document is silent on a metric, no fabricated citation is attached."""
+    unspecified_answer = "The document does not specify the model's measured accuracy."
+    passages = [{
+        "chunk_id": "c1",
+        "document_id": "doc_voice",
+        "filename": "Voice_Shield_Test_Document.txt",
+        "page": 1,
+        "text": "The Risk Engine evaluates synthetic speech with a threshold of 0.75."
+    }]
+
+    resp = citation_validator.build_response(unspecified_answer, passages)
+    assert len(resp.sources) == 0
+
+
+def test_bm25_search_scoring_and_filtering():
+    """Verify BM25 search ranking, page number preservation, and document isolation."""
+    from backend.app.retrieval.bm25_search import BM25SearchManager
+
+    bm = BM25SearchManager()
+    chunks = [
+        {"chunk_id": "c1", "document_id": "d1", "filename": "audio.txt", "page": 1, "text": "Mel-spectrogram maps frequency energies onto the Mel scale."},
+        {"chunk_id": "c2", "document_id": "d1", "filename": "audio.txt", "page": 2, "text": "Discrete Cosine Transform decorrelates filterbank coefficients to produce MFCCs."},
+        {"chunk_id": "c3", "document_id": "d2", "filename": "other.txt", "page": 1, "text": "Unrelated database indexing notes."}
+    ]
+    bm.update_corpus(chunks)
+
+    results = bm.search("Discrete Cosine Transform MFCCs", top_k=2)
+    assert len(results) >= 1
+    assert results[0]["chunk_id"] == "c2"
+    assert results[0]["page"] == 2
+
+    # Verify document_id filtering
+    isolated = bm.search("Discrete Cosine Transform", top_k=5, document_ids=["d2"])
+    assert len(isolated) == 0
+
+
+def test_hybrid_target_page_detection():
+    """Verify extraction of target page numbers from user query strings."""
+    from backend.app.retrieval.hybrid import HybridRetriever
+
+    assert HybridRetriever.extract_target_page("What is on page 4?") == 4
+    assert HybridRetriever.extract_target_page("Summarize pg. 2 please.") == 2
+    assert HybridRetriever.extract_target_page("According to p 12, what is the rule?") == 12
+    assert HybridRetriever.extract_target_page("Explain synthetic speech risk score.") is None
+
+

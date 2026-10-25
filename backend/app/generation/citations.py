@@ -137,14 +137,44 @@ class CitationValidator:
         scored_passages.sort(key=lambda x: x[0], reverse=True)
 
         # Fallback: if no passage had explicit citation or high overlap, take top-1 retrieved chunk
-        if not scored_passages and passages:
+        # ONLY if the answer is not an explicit statement that facts are missing, unstated, or unspecified
+        lower_ans = answer.lower()
+        is_negative_statement = any(
+            neg in lower_ans for neg in [
+                "does not specify", "not specified", "is not specified",
+                "does not mention", "not mentioned", "is not mentioned",
+                "do not mention", "does not provide", "not provided",
+                "insufficient evidence", "no mention"
+            ]
+        )
+        if not scored_passages and passages and not is_negative_statement:
             scored_passages.append((1, passages[0]))
 
         for _, p in scored_passages[:5]:
             cid = p.get("chunk_id", "")
-            text_snippet = p.get("text", "").strip()
-            if len(text_snippet) > 180:
-                text_snippet = text_snippet[:177] + "..."
+            raw_text = p.get("text", "").strip()
+            
+            # Extract focused snippet centered around matching keywords if text is long
+            if len(raw_text) > 220:
+                found_pos = -1
+                for w in answer_words:
+                    pos = raw_text.lower().find(w)
+                    if pos != -1:
+                        found_pos = pos
+                        break
+                
+                if found_pos != -1:
+                    start_pos = max(0, found_pos - 60)
+                    end_pos = min(len(raw_text), start_pos + 180)
+                    snippet = raw_text[start_pos:end_pos].strip()
+                    if start_pos > 0:
+                        snippet = "..." + snippet
+                    if end_pos < len(raw_text):
+                        snippet = snippet + "..."
+                else:
+                    snippet = raw_text[:200] + "..."
+            else:
+                snippet = raw_text
 
             verified_sources.append(
                 CitationSource(
@@ -152,7 +182,7 @@ class CitationValidator:
                     filename=p.get("filename", ""),
                     page=int(p.get("page", 1)),
                     chunk_id=cid,
-                    snippet=text_snippet
+                    snippet=snippet
                 )
             )
 

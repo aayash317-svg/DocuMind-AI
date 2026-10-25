@@ -47,7 +47,7 @@ class BM25SearchManager:
             if document_ids and chunk.get("document_id") not in document_ids:
                 continue
 
-            chunk_page = chunk.get("page", 1)
+            chunk_page = chunk.get("page") or chunk.get("page_number", 1)
             if page_number is not None and chunk_page != page_number:
                 continue
 

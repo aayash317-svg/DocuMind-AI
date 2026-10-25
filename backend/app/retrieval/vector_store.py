@@ -27,18 +27,22 @@ class VectorStoreManager:
             try:
                 self.client = QdrantClient(path=str(qpath))
             except Exception as e:
-                if is_test:
-                    self.client = QdrantClient(":memory:")
-                else:
+                err_str = str(e).lower()
+                if "already accessed by another instance" in err_str:
                     lock_file = qpath / ".lock"
-                    if "already accessed by another instance" in str(e).lower() and lock_file.exists():
+                    unlinked = False
+                    if lock_file.exists():
                         try:
                             lock_file.unlink(missing_ok=True)
                             self.client = QdrantClient(path=str(qpath))
+                            unlinked = True
                         except Exception:
-                            raise e
-                    else:
-                        raise e
+                            unlinked = False
+                    if not unlinked:
+                        # Another active process holds the local Qdrant lock; fall back to in-memory
+                        self.client = QdrantClient(":memory:")
+                else:
+                    raise e
         self.collection_name = settings.QDRANT_COLLECTION
 
         # Lazy/Cached model loading

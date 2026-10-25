@@ -14,3 +14,4 @@ if (Test-Path "$ScriptDir\.venv\Scripts\python.exe") {
     Write-Host "[Using system python]" -ForegroundColor Yellow
     python -m pytest $args
 }
+

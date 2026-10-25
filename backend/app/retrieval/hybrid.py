@@ -20,8 +20,8 @@ class HybridRetriever:
 
     @staticmethod
     def extract_target_page(query: str) -> Optional[int]:
-        """Detect if the user is asking about a specific page (e.g. 'page 4', 'pg 2', 'p. 5')."""
-        match = re.search(r"\b(?:page|pg|p\.)\s*:?\s*(\d+)\b", query, re.IGNORECASE)
+        """Detect if the user is asking about a specific page (e.g. 'page 4', 'pg 2', 'pg. 2', 'p. 5')."""
+        match = re.search(r"\b(?:page|pg\.?|p\.?)\s*:?\s*(\d+)\b", query, re.IGNORECASE)
         if match:
             try:
                 return int(match.group(1))
