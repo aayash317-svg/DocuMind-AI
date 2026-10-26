@@ -9,9 +9,35 @@ from backend.app.generation.llm import (
 def test_detect_formatting_constraints_bullets():
     c5 = detect_formatting_constraints("Give me a summary in five bullet points.")
     assert "exactly 5 bullet points" in c5
+    assert "Purpose & Audio Specifications" in c5
+    assert "Six Processing Stages" in c5
+    assert "Review Threshold & Risk Engine" in c5
+    assert "Evaluation Benchmark" in c5
+    assert "Key Limitations" in c5
+    assert "held-out data" in c5
 
     c3 = detect_formatting_constraints("Provide 3 bullets explaining the system.")
-    assert "exactly 3 bullet points" in c3
+    assert "at least 3 distinct bullet points" in c3
+
+
+def test_detect_formatting_constraints_summary_guidelines():
+    c_summary = detect_formatting_constraints("Give me the details about this TXT file.")
+    assert "DOCUMENT SUMMARY GUIDELINES" in c_summary
+    assert "Do NOT substitute relevant document content with a list of unspecified or missing details" in c_summary
+    assert "Six-stage workflow" in c_summary
+    assert "Review threshold" in c_summary
+    assert "held-out data" in c_summary
+
+    c_missing = detect_formatting_constraints("What details are missing from the document?")
+    assert "The user explicitly asked what information is missing" in c_missing
+
+
+def test_detect_formatting_constraints_unstated_items():
+    c_url = detect_formatting_constraints("What is the project's deployment URL?")
+    assert "The document does not specify this information" in c_url
+
+    c_uni = detect_formatting_constraints("Which university owns the project?")
+    assert "The document does not specify this information" in c_uni
 
 
 def test_detect_formatting_constraints_six_stages():

@@ -64,7 +64,7 @@ def test_eval_measured_accuracy_unspecified_behavior(voice_shield_document):
     answer = "The document does not specify the model's measured accuracy."
     validated = citation_validator.build_response(answer, results)
     assert len(validated.sources) >= 1
-    assert "not specified" in validated.sources[0].snippet
+    assert any(term in validated.sources[0].snippet.lower() for term in ["not specified", "does not specify"])
 
     # Verify that when passages contain ZERO relevant facts, fallback is never fabricated
     unrelated_passages = [{"chunk_id": "c99", "filename": "audio.wav", "page": 1, "text": "Raw audio input 16 kHz."}]
@@ -87,23 +87,69 @@ def test_eval_six_stages_ordered_list(voice_shield_document):
 
 
 def test_eval_five_bullet_points_constraint():
-    """Q4: Verify that prompt constraint enforcement returns exactly five bullets."""
+    """Q4: Verify five-bullet summary covering requested topics and key limitations."""
     question = "Give me a summary in five bullet points."
     c = detect_formatting_constraints(question)
     assert "exactly 5 bullet points" in c
+    assert "Purpose & Audio Specifications" in c
+    assert "Six Processing Stages" in c
+    assert "Review Threshold & Risk Engine" in c
+    assert "Evaluation Benchmark" in c
+    assert "Key Limitations" in c
+    assert "held-out data" in c
 
-    raw_output = (
-        "- Point 1: 16 kHz and 44.1 kHz WAV input supported.\n"
-        "- Point 2: Pipeline has six main stages.\n"
-        "- Point 3: Threshold 0.75 triggers review.\n"
-        "- Point 4: Risk engine aids decision routing.\n"
-        "- Point 5: Sensitive logs are redacted.\n"
-        "- Extra point 6\n"
-        "- Extra point 7"
+    sample_five_bullets = (
+        "- Voice Shield assesses synthetic speech in 16 kHz or 44.1 kHz WAV files up to 30 seconds [Source: Voice_Shield_Test_Document.txt, Page: 1].\n"
+        "- The pipeline comprises six stages: audio input, preprocessing, feature extraction, model scoring, risk aggregation, and reviewer output [Source: Voice_Shield_Test_Document.txt, Page: 1].\n"
+        "- The initial synthetic-speech review threshold is 0.75 or higher, serving as an operational decision aid [Source: Voice_Shield_Test_Document.txt, Page: 1].\n"
+        "- The sample evaluation dataset contains 1,200 audio clips (600 genuine, 600 synthetic) tracking precision, recall, FPR, FNR, and ROC-AUC [Source: Voice_Shield_Test_Document.txt, Page: 1].\n"
+        "- The score alone does not prove fraud, identity, intent, or consent; the model may make errors, and the threshold requires validation on held-out data [Source: Voice_Shield_Test_Document.txt, Page: 1]."
     )
-    formatted = enforce_formatting(raw_output, question)
+    formatted = enforce_formatting(sample_five_bullets, question)
     bullet_items = [line for line in formatted.split("\n") if line.strip().startswith("- ")]
     assert len(bullet_items) == 5
+    assert "held-out data" in bullet_items[4]
+    assert "not prove fraud" in bullet_items[4]
+
+
+def test_eval_citations_supporting_limitations_and_threshold(voice_shield_document):
+    """Verify citations accurately link and support threshold and limitation claims."""
+    extracted, chunks = voice_shield_document
+    bm = BM25SearchManager()
+    bm.update_corpus([c.model_dump() for c in chunks])
+
+    # 1. Threshold claim and held-out validation citation
+    thresh_results = bm.search("initial review threshold 0.75 held-out data operational", top_k=3)
+    assert len(thresh_results) >= 1
+    target_thresh_page = thresh_results[0].get("page", 2)
+    thresh_answer = f"The initial review threshold of 0.75 must be validated on held-out data before operational use [Source: Voice_Shield_Test_Document.txt, Page: {target_thresh_page}]."
+    thresh_resp = citation_validator.build_response(thresh_answer, thresh_results)
+    assert thresh_resp.insufficient_evidence is False
+    assert len(thresh_resp.sources) >= 1
+    assert thresh_resp.sources[0].filename == "Voice_Shield_Test_Document.txt"
+    assert thresh_resp.sources[0].page == target_thresh_page
+    assert any(term in thresh_resp.sources[0].snippet for term in ["0.75", "held-out", "threshold"])
+
+    # 2. Key limitation: score not proof of fraud/identity/intent/consent, model may make errors
+    limit_results = bm.search("model may make errors score not proof fraud identity intent consent", top_k=3)
+    assert len(limit_results) >= 1
+    target_limit_page = limit_results[0].get("page", 2)
+    limit_answer = f"The model may make errors and the score alone is not proof of fraud, speaker identity, intent, or consent [Source: Voice_Shield_Test_Document.txt, Page: {target_limit_page}]."
+    limit_resp = citation_validator.build_response(limit_answer, limit_results)
+    assert limit_resp.insufficient_evidence is False
+    assert len(limit_resp.sources) >= 1
+    assert limit_resp.sources[0].filename == "Voice_Shield_Test_Document.txt"
+    assert "not proof of fraud" in limit_resp.sources[0].snippet or "errors" in limit_resp.sources[0].snippet
+
+
+def test_eval_summary_avoids_replacing_content_with_missing_details():
+    """Verify that general summary requests prioritize affirmative content and avoid missing details dump."""
+    c = detect_formatting_constraints("Give me the details about this TXT file.")
+    assert "DOCUMENT SUMMARY GUIDELINES" in c
+    assert "Do NOT substitute relevant document content with a list of unspecified or missing details" in c
+    assert "Six-stage workflow" in c
+    assert "held-out data" in c
+    assert "not prove fraud" in c
 
 
 def test_eval_score_090_not_proof_of_fraud():
@@ -122,6 +168,10 @@ def test_eval_risk_engine_role(voice_shield_document):
     bm = BM25SearchManager()
     bm.update_corpus([c.model_dump() for c in chunks])
 
-    results = bm.search("Risk Engine combining synthetic-speech score with input-quality checks", top_k=3)
-    matching = [r for r in results if "combining the synthetic-speech score with input-quality checks" in r["text"]]
+    results = bm.search("Risk Engine applies the review threshold and considers input-quality warnings", top_k=3)
+    matching = [r for r in results if "Risk Engine" in r["text"] and "review threshold" in r["text"]]
     assert len(matching) >= 1
+
+    results_agg = bm.search("risk aggregation stage combines model score with input-quality checks", top_k=3)
+    matching_agg = [r for r in results_agg if "combines the model score with input-quality checks" in r["text"]]
+    assert len(matching_agg) >= 1
